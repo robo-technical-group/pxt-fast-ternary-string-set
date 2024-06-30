@@ -1,0 +1,17 @@
+{
+    "name": "pxt-fast-ternary-string-set",
+    "version": "0.0.0",
+    "files": [
+        "main.ts"
+    ],
+    "supportedTargets": [
+        "arcade"
+    ],
+    "dependencies": {
+        "device": "*"
+    },
+    "testFiles": [
+        "test.ts"
+    ],
+    "testDependencies": {}
+}
