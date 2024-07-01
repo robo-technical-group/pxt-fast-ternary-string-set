@@ -131,6 +131,141 @@ if (test.size != 3) {
     allPassed = false
 }
 
+// addAll with complex strings.
+test = new TernaryStringSet()
+test.addAll([
+    "Mt. Doom",
+    "a dog—smelly",
+    "line 1\nline2",
+    "🙂",
+    "I have a pet 🐈",
+    "good 🍀 luck!",
+    "程序设计员在用电脑。",
+    "𝄞𝅘𝅥𝅘𝅥𝅮𝅘𝅥𝅯𝅘𝅥𝅰𝄽",
+    "The \0 NUL Zone",
+    "max code point \udbff\udfff",
+])
+if (test.size == 0) {
+    game.splash("Test 9a failed.")
+    allPassed = false
+}
+if (test.size != 10) {
+    game.splash("Test 9b failed.")
+    allPassed = false
+}
+
+// addAll tests with ranges.
+test = new TernaryStringSet()
+test.addAll([])
+if (test.size != 0) {
+    game.splash("Test 10a failed.")
+    allPassed = false
+}
+test.addAll(["mongoose",])
+if (test.size != 1) {
+    game.splash("Test 10b failed.")
+    allPassed = false
+}
+test.addAll(["badger", "pelican",], 0, 2)
+if (test.size != 3) {
+    game.splash("Test 10c failed.")
+    allPassed = false
+}
+test.addAll(["asp", "mouse", "oyster",], 1, 3)
+if (test.size != 5) {
+    game.splash("Test 10d failed.")
+    allPassed = false
+}
+if (test.has("asp")) {
+    game.splash("Test 10e failed.")
+    allPassed = false
+}
+test.addAll(["barracuda", "cricket", "panda", "tiger",], 0, 2)
+if (test.size != 7) {
+    game.splash("Test 10f failed.")
+    allPassed = false
+}
+if (!test.has("barracuda") || !test.has("cricket")) {
+    game.splash("Test 10g failed.")
+    allPassed = false
+}
+if (test.has("panda") || test.has("tiger")) {
+    game.splash("Test 10h failed.")
+    allPassed = false
+}
+test.addAll(["bison", "caribou", "deer", "elk", "moose",], 1)
+if (test.size != 11) {
+    game.splash("Test 10i failed.")
+    allPassed = false
+}
+if (test.has("bison")) {
+    game.splash("Test 10j failed.")
+    allPassed = false
+}
+if (!test.has("caribou") || !test.has("moose")) {
+    game.splash("Test 10k failed.")
+    allPassed = false
+}
+
+// addAll() with bad indices.
+test = new TernaryStringSet()
+try {
+    test.addAll(["badger",], -1)
+    game.splash("Test 11a failed.")
+    allPassed = false
+} catch {
+
+}
+try {
+    test.addAll(["asp",], 0.5)
+    game.splash("Test 11b failed.")
+    allPassed = false
+} catch {
+
+}
+try {
+    test.addAll(["pig",], NaN)
+    game.splash("Test 11c failed.")
+    allPassed = false
+} catch {
+
+}
+try {
+    test.addAll(["hare",], 2)
+    game.splash("Test 11d failed.")
+    allPassed = false
+} catch {
+
+}
+try {
+    test.addAll(["ox",], 0, -1)
+    game.splash("Test 11e failed.")
+    allPassed = false
+} catch {
+
+}
+try {
+    test.addAll(["wolf",], 0, 0.5)
+    game.splash("Test 11f failed.")
+    allPassed = false
+} catch {
+
+}
+try {
+    test.addAll(["spider",], 0, NaN)
+    game.splash("Test 11g failed.")
+    allPassed = false
+} catch {
+
+}
+try {
+    test.addAll(["carp",], 0, 2)
+    game.splash("Test 11h failed.")
+    allPassed = false
+} catch {
+
+}
+
 // Show summary.
 if (allPassed) {
     game.splash("All tests passed!")
