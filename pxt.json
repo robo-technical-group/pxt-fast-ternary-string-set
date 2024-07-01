@@ -1,6 +1,6 @@
 {
     "name": "pxt-fast-ternary-string-set",
-    "version": "0.0.0",
+    "version": "1.0.0",
     "dependencies": {
         "device": "*"
     },
