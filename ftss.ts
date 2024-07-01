@@ -188,6 +188,9 @@ class TernaryStringSet {
      * @returns true if every element was present and was removed.
      */
     public deleteAll(elements: string[]): boolean {
+        if (elements == null) {
+            return false
+        }
         let allDeleted: boolean = true
         for (const el of elements) {
             allDeleted = this.delete(el) && allDeleted
