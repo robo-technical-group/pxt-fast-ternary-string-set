@@ -83,6 +83,9 @@ class TernaryStringSet {
      * @param s The non-null string to add.
      */
     public add(s: string): void {
+        if (s == null) {
+            throw 'Cannot add null string.'
+        }
         if (s.length === 0) {
             if (!this._hasEmpty) {
                 this._hasEmpty = true
@@ -161,6 +164,9 @@ class TernaryStringSet {
      * @returns True if the string was in this set; false otherwise.
      */
     public delete(s: string): boolean {
+        if (s == null) {
+            throw 'Cannot delete null string.'
+        }
         if (s.length === 0) {
             const had = this._hasEmpty
             if (had) {
@@ -183,6 +189,9 @@ class TernaryStringSet {
      * @returns true if the string is present.
      */
     public has(s: string): boolean {
+        if (s == null) {
+            throw 'Cannot test for null string'
+        }
         if (s.length === 0) {
             return this._hasEmpty
         }
