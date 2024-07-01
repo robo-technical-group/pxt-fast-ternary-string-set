@@ -5,7 +5,8 @@
         "device": "*"
     },
     "files": [
-        "main.ts"
+        "main.ts",
+        "ftss.ts"
     ],
     "testFiles": [
         "test.ts"
