@@ -153,6 +153,29 @@ class TernaryStringSet {
     }
 
     /**
+     * Removes the specified string from this set, if it is present.
+     * If it is not present, this has no effect.
+     * Non-strings are accepted, but treated as if they are not present.
+     *
+     * @param s The non-null string to delete.
+     * @returns True if the string was in this set; false otherwise.
+     */
+    public delete(s: string): boolean {
+        if (s.length === 0) {
+            const had = this._hasEmpty
+            if (had) {
+                this._hasEmpty = false
+                --this._size
+            }
+            return had
+        }
+        if (this._compact && this.has(s)) {
+            this.decompact()
+        }
+        return this._delete(0, s, 0, s.charCodeAt(0))
+    }
+
+    /**
      * Returns whether this set contains the specified string.
      * If passed a non-string value, returns false.
      *
@@ -200,6 +223,31 @@ class TernaryStringSet {
             }
         }
         return node
+    }
+
+    protected _delete(node: number, s: string, i: number, c: number): boolean {
+        const tree: number[] = this._tree
+        if (node >= tree.length) {
+            return false
+        }
+        const treeChar: number = tree[node] & TernaryStringSet.CP_MASK
+        if (c < treeChar) {
+            return this._delete(tree[node + 1], s, i, c)
+        } else if (c > treeChar) {
+            return this._delete(tree[node + 3], s, i, c)
+        } else {
+            i += c > TernaryStringSet.CP_MIN_SURROGATE ? 2 : 1
+            if (i >= s.length) {
+                const had = (tree[node] & TernaryStringSet.EOS) === TernaryStringSet.EOS
+                if (had) {
+                    tree[node] &= TernaryStringSet.CP_MASK
+                    --this._size
+                }
+                return had
+            } else {
+                return this._delete(tree[node + 2], s, i, s.charCodeAt(i))
+            }
+        }
     }
 
     protected _addAll(strings: string[], start: number, end: number): void {
