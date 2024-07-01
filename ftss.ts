@@ -54,15 +54,15 @@ class TernaryStringSet {
      * 3. `tree[n+2]`: array index of the "equal to" branch's child node
      * 4. `tree[n+3]`: array index of the "greater than" branch's child node
      */
-    private _tree: number[]
+    protected _tree: number[]
     /** Tracks whether empty string is in the set as a special case. */
-    private _hasEmpty: boolean
+    protected _hasEmpty: boolean
     /** Tracks whether this tree has been compacted; if true this must be undone before mutating the tree. */
-    private _compact: boolean
+    protected _compact: boolean
     /** Tracks set size. */
-    private _size: number
+    protected _size: number
     /** Stats. */
-    private _stats: TernaryTreeStats = {
+    protected _stats: TernaryTreeStats = {
         size: 0,
         nodes: 0,
         compact: false,
