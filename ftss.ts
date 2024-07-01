@@ -182,6 +182,20 @@ class TernaryStringSet {
     }
 
     /**
+     * Removes multiple elements from this set.
+     *
+     * @param elements The elements to remove.
+     * @returns true if every element was present and was removed.
+     */
+    public deleteAll(elements: string[]): boolean {
+        let allDeleted: boolean = true
+        for (const el of elements) {
+            allDeleted = this.delete(el) && allDeleted
+        }
+        return allDeleted
+    }
+
+    /**
      * Returns whether this set contains the specified string.
      * If passed a non-string value, returns false.
      *
