@@ -152,6 +152,13 @@ class TernaryStringSet {
         throw 'decompact(): Not yet implemented.'
     }
 
+    /**
+     * Returns whether this set contains the specified string.
+     * If passed a non-string value, returns false.
+     *
+     * @param s The non-null string to test for.
+     * @returns true if the string is present.
+     */
     public has(s: string): boolean {
         if (s.length === 0) {
             return this._hasEmpty
