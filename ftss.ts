@@ -5,6 +5,32 @@
    Copyright © 2023 by Christopher Jennings.
    Licensed under an MIT license (see link above for details).
 !*/
+interface TernaryTreeStats {
+    /** The number of strings in the tree. Equivalent to the `size` property. */
+    size: number;
+    /**
+     * The total number of nodes in the tree. For a typical JavaScript engine,
+     * the set will consume approximately `nodes * 16` bytes of memory,
+     * plus some fixed object overhead.
+     */
+    nodes: number;
+    /** True if the tree structure is compacted. */
+    compact: boolean;
+    /** The maximum depth (height) of the tree. */
+    depth: number;
+    /**
+     * Width of the tree at each level of tree depth, starting with the root at `breadth[0]`.
+     * A deep tree with relatively small breadth values may benefit from being balanced.
+     */
+    breadth: number[];
+    /** The least code point contained in any string in the set. */
+    minCodePoint: number;
+    /** The greatest code point contained in any string in the set. */
+    maxCodePoint: number;
+    /** The total number of nodes whose code point spans multiple char codes when stored in a string. */
+    surrogates: number;
+}
+
 class TernaryStringSet {
     /**
      * Constants
@@ -20,7 +46,6 @@ class TernaryStringSet {
     /** Smallest code point that requires a surrogate pair. */
     protected static readonly CP_MIN_SURROGATE = 0x10000
 
-
     /**
      * Tree data, an integer array laid out as follows:
      *
@@ -29,13 +54,24 @@ class TernaryStringSet {
      * 3. `tree[n+2]`: array index of the "equal to" branch's child node
      * 4. `tree[n+3]`: array index of the "greater than" branch's child node
      */
-    private _tree: number[];
+    private _tree: number[]
     /** Tracks whether empty string is in the set as a special case. */
-    private _hasEmpty: boolean;
+    private _hasEmpty: boolean
     /** Tracks whether this tree has been compacted; if true this must be undone before mutating the tree. */
-    private _compact: boolean;
+    private _compact: boolean
     /** Tracks set size. */
-    private _size: number;
+    private _size: number
+    /** Stats. */
+    private _stats: TernaryTreeStats = {
+        size: 0,
+        nodes: 0,
+        compact: false,
+        depth: 0,
+        breadth: [],
+        minCodePoint: 0,
+        maxCodePoint: 0,
+        surrogates: 0,
+    }
 
     /**
      * Creates a new set. The set will be empty unless the optional iterable `source` object
@@ -69,6 +105,15 @@ class TernaryStringSet {
      */
     public get size(): number {
         return this._size
+    }
+
+    /**
+     * Returns information about this set's underlying tree structure.
+     * This method is intended only for testing and performance analysis.
+     */
+    public get stats(): TernaryTreeStats {
+        this.updateStats()
+        return this._stats
     }
 
     /**
@@ -251,6 +296,22 @@ class TernaryStringSet {
         return node
     }
 
+    protected _addAll(strings: string[], start: number, end: number): void {
+        if (--end < start) {
+            return
+        }
+
+        /**
+         * If the tree is empty and the list is sorted, then
+         * insertion by repeated bifurcation ensures a balanced tree.
+         * Inserting strings in sorted order is a degenerate case.
+         */
+        const mid: number = Math.trunc(start + (end - start) / 2)
+        this.add(strings[mid])
+        this._addAll(strings, start, mid)
+        this._addAll(strings, mid + 1, end + 1)
+    }
+
     protected _delete(node: number, s: string, i: number, c: number): boolean {
         const tree: number[] = this._tree
         if (node >= tree.length) {
@@ -276,22 +337,6 @@ class TernaryStringSet {
         }
     }
 
-    protected _addAll(strings: string[], start: number, end: number): void {
-        if (--end < start) {
-            return
-        }
-
-        /**
-         * If the tree is empty and the list is sorted, then
-         * insertion by repeated bifurcation ensures a balanced tree.
-         * Inserting strings in sorted order is a degenerate case.
-         */
-        const mid: number = Math.trunc(start + (end - start) / 2)
-        this.add(strings[mid])
-        this._addAll(strings, start, mid)
-        this._addAll(strings, mid + 1, end + 1)
-    }
-
     protected _has(node: number, s: string, i: number, c: number): boolean {
         const tree = this._tree
 
@@ -312,5 +357,41 @@ class TernaryStringSet {
                 return this._has(tree[node + 2], s, i, s.charCodeAt(i))
             }
         }
+    }
+
+    protected traverse(n: number, d: number): void {
+        if (n >= this._tree.length) {
+            return
+        }
+        this._stats.breadth[d] = this._stats.breadth.length <= d ?
+            1 :
+            this._stats.breadth[d] + 1
+        const cp: number = this._tree[n] & TernaryStringSet.CP_MASK
+        if (cp >= TernaryStringSet.CP_MIN_SURROGATE) {
+            this._stats.surrogates++
+        }
+        if (cp > this._stats.maxCodePoint) {
+            this._stats.maxCodePoint = cp
+        }
+        if (cp < this._stats.minCodePoint) {
+            this._stats.minCodePoint = cp
+        }
+
+        this.traverse(this._tree[n + 1], d + 1)
+        this.traverse(this._tree[n + 2], d + 1)
+        this.traverse(this._tree[n + 3], d + 1)
+    }
+
+    protected updateStats(): void {
+        this._stats.breadth = []
+        this._stats.nodes = this._tree.length / 4
+        this._stats.surrogates = 0
+        this._stats.minCodePoint = this._stats.nodes > 0 ? 0x10fff : 0
+        this._stats.maxCodePoint = 0
+
+        this.traverse(0, 0)
+        this._stats.size = this._size
+        this._stats.compact = this._compact
+        this._stats.depth = this._stats.breadth.length
     }
 }
