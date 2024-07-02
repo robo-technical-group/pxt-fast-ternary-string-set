@@ -1,7 +1,6 @@
 // Tests moved to separate project.
 
 let test: TernaryStringSet
-let stats: TernaryTreeStats
 let allPassed: boolean = true
 
 if (allPassed) {

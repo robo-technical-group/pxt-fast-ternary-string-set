@@ -244,6 +244,41 @@ class TernaryStringSet {
     }
 
     /**
+     * Returns all strings in this set that can be composed from combinations of the code points
+     * in the specified string. Unlike an anagram, all of the code points need not to appear for a match
+     * to count. For example, the pattern `"coat"` can match `"cat"` even though the *o* is not used.
+     * However, characters cannot appear *more often* than they appear in the pattern string. The same
+     * pattern `"coat"` cannot match `"tot"` since it includes only a single *t*.
+     *
+     * If this set contains the empty string, it is always included in results from this
+     * method.
+     *
+     * @param charPattern The non-null pattern string.
+     * @returns A (possibly empty) array of strings from the set that can be composed from the
+     *     pattern characters.
+     * @throws `ReferenceError` if the pattern is null.
+     */
+    public getArrangementsOf(charPattern: string): string[] {
+        if (charPattern == null) {
+            throw 'Pattern cannot be null.'
+        }
+        
+        // availChars[codePoint] = How many times codePoint appears in pattern.
+        const availChars: number[] = []
+        for (let i: number = 0; i < charPattern.length;) {
+            const cp: number = charPattern.charCodeAt(i++)
+            if (cp >= TernaryStringSet.CP_MIN_SURROGATE) {
+                i++
+            }
+            availChars[cp] = availChars[cp] ? availChars[cp] + 1 : 1
+        }
+
+        const matches: string[] = this._hasEmpty ? [""] : []
+        this._getArrangementsOf(0, availChars, [], matches)
+        return matches
+    }
+
+    /**
      * Returns whether this set contains the specified string.
      * If passed a non-string value, returns false.
      *
@@ -335,6 +370,35 @@ class TernaryStringSet {
                 return this._delete(tree[node + 2], s, i, s.charCodeAt(i))
             }
         }
+    }
+
+    protected _getArrangementsOf(node: number, availChars: number[], prefix: number[], matches: string[]) {
+        const tree = this._tree
+        if (node >= tree.length) {
+            return
+        }
+        this._getArrangementsOf(tree[node + 1], availChars, prefix, matches)
+
+        const cp = tree[node] & TernaryStringSet.CP_MASK
+        if (availChars[cp] > 0) {
+            availChars[cp]--
+            prefix.push(cp)
+            if (tree[node] & TernaryStringSet.EOS) {
+                matches.push(this.getStringFromCharArray(prefix))
+            }
+            this._getArrangementsOf(tree[node + 2], availChars, prefix, matches)
+            prefix.pop()
+            availChars[cp]++
+        }
+        this._getArrangementsOf(tree[node + 3], availChars, prefix, matches)
+    }
+
+    protected getStringFromCharArray(codes: number[]): string {
+        let toReturn: string = ""
+        for (let c of codes) {
+            toReturn += String.fromCharCode(c)
+        }
+        return toReturn
     }
 
     protected _has(node: number, s: string, i: number, c: number): boolean {
