@@ -243,6 +243,14 @@ class TernaryStringSet {
         return allDeleted
     }
 
+    public static fromCodePoints(s: number[]): string {
+        let toReturn: string = ''
+        for (let c of s) {
+            toReturn += String.fromCharCode(c)
+        }
+        return toReturn
+    }
+
     /**
      * Returns all strings in this set that can be composed from combinations of the code points
      * in the specified string. Unlike an anagram, all of the code points need not to appear for a match
@@ -279,6 +287,81 @@ class TernaryStringSet {
     }
 
     /**
+     * Returns an array of possible completions for the specified prefix string.
+     * That is, an array of all strings in the set that start with the prefix.
+     * If the prefix itself is in the set, it is included as the first entry.
+     *
+     * @param prefix The non-null pattern to find completions for.
+     * @returns A (possibly empty) array of all strings in the set for which the
+     *     pattern is a prefix.
+     * @throws `ReferenceError` if the pattern is null.
+     */
+    public getCompletionsOf(prefix: string): string[] {
+        if (prefix == null)
+        {
+            throw 'Prefix cannot be null.'
+        }
+        if (prefix.length === 0) {
+            return this.toArray()
+        }
+
+        const results: string[] = []
+        const pat = TernaryStringSet.toCodePoints(prefix)
+        let node: number = this.hasCodePoints(0, pat, 0)
+        if (node < 0) {
+            node = -node - 1
+            // Prefix is not in tree; no children are, either.
+            if (node >= this._tree.length) {
+                return results
+            }
+            // Prefix is in tree, but it not itself in the set.
+        } else {
+            // Prefix is in tree and also in set.
+            results.push(prefix)
+        }
+
+        // Continue from end of prefix by taking the equal branch.
+        this.visitCodePoints(this._tree[node + 2], pat, (s) => {
+            results.push(TernaryStringSet.fromCodePoints(s))
+        })
+        return results
+    }
+
+    /**
+     * Returns an array of the strings that are completed by the specified suffix string.
+     * That is, an array of all strings in the set that end with the suffix,
+     * including the suffix itself if appropriate.
+     *
+     * @param suffix The non-null pattern to find completions for.
+     * @returns A (possibly empty) array of all strings in the set for which the
+     *     pattern is a suffix.
+     * @throws `ReferenceError` if the pattern is null.
+     */
+    public getCompletedBy(suffix: string): string[] {
+        if (suffix == null) {
+            throw 'Suffix cannot be null.'
+        }
+        if (suffix.length === 0) {
+            return this.toArray()
+        }
+        const results: string[] = []
+        const pat: number[] = TernaryStringSet.toCodePoints(suffix)
+
+        // Unlike getCompletionsOf, we have to search the entire tree.
+        this.visitCodePoints(0, [], (s) => {
+            if (s.length >= pat.length) {
+                for (let i: number = 1; i <= pat.length; ++i) {
+                    if (s[s.length - i] !== pat[pat.length - i]) {
+                        return
+                    }
+                }
+                results.push(TernaryStringSet.fromCodePoints(s))
+            }
+        })
+        return results
+    }
+
+    /**
      * Returns whether this set contains the specified string.
      * If passed a non-string value, returns false.
      *
@@ -293,6 +376,32 @@ class TernaryStringSet {
             return this._hasEmpty
         }
         return this._has(0, s, 0, s.charCodeAt(0))
+    }
+
+    public toArray(): string[] {
+        const a = this._hasEmpty ? [""] : []
+        this.visitCodePoints(0, [], (s) => {
+            a.push(TernaryStringSet.fromCodePoints(s))
+        })
+        return a
+    }
+
+    /**
+     * Converts a string to an array of numeric code points.
+     *
+     * @param s A non-null string.
+     * @returns An array of the code points comprising the string.
+     */
+    public static toCodePoints(s: string): number[] {
+        const cps = []
+        for (let i = 0; i < s.length; ) {
+            const cp = s.charCodeAt(i++)
+            if (cp >= TernaryStringSet.CP_MIN_SURROGATE) {
+                ++i
+            }
+            cps.push(cp)
+        }
+        return cps
     }
 
     /**
@@ -423,6 +532,27 @@ class TernaryStringSet {
         }
     }
 
+    protected hasCodePoints(node: number, s: number[], i: number): number {
+        const tree = this._tree
+        if (node >= tree.length) {
+            return -node - 1
+        }
+
+        const cp = s[i]
+        const treeCp = tree[node] & TernaryStringSet.CP_MASK
+        if (cp < treeCp) {
+            return this.hasCodePoints(tree[node + 1], s, i)
+        }
+        if (cp > treeCp) {
+            return this.hasCodePoints(tree[node + 3], s, i)
+        }
+        if (++i >= s.length) {
+            return (tree[node] & TernaryStringSet.EOS) === TernaryStringSet.EOS ?
+                node : -node - 1
+        }
+        return this.hasCodePoints(tree[node + 2], s, i)
+    }
+
     protected traverse(n: number, d: number): void {
         if (n >= this._tree.length) {
             return
@@ -457,5 +587,24 @@ class TernaryStringSet {
         this._stats.size = this._size
         this._stats.compact = this._compact
         this._stats.depth = this._stats.breadth.length
+    }
+
+    protected visitCodePoints(
+        node: number,
+        prefix: number[],
+        visitFn: (prefix: number[], node: number) => void
+    ) {
+        const tree = this._tree
+        if (node >= tree.length) {
+            return
+        }
+        this.visitCodePoints(tree[node + 1], prefix, visitFn)
+        prefix.push(tree[node] & TernaryStringSet.CP_MASK)
+        if ((tree[node] & TernaryStringSet.EOS) === TernaryStringSet.EOS) {
+            visitFn(prefix, node)
+        }
+        this.visitCodePoints(tree[node + 2], prefix, visitFn)
+        prefix.pop()
+        this.visitCodePoints(tree[node + 3], prefix, visitFn)
     }
 }
