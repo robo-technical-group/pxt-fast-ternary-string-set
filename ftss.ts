@@ -362,6 +362,39 @@ class TernaryStringSet {
     }
 
     /**
+     * Returns all strings that match the pattern. The pattern may include zero or
+     * more "don't care" characters that can match any code point. By default this
+     * character is `"."`, but any valid code point can be used. For example, the
+     * pattern `"c.t"` would match any of `"cat"`, `"cot"`, or `"cut"`, but not `"cup"`.
+     *
+     * @param pattern A pattern string matched against the strings in the set.
+     * @param dontCareChar The character that can stand in for any character in the pattern.
+     *     Only the first code point is used. (Default is `"."`.)
+     * @returns A (possibly empty) array of strings that match the pattern string.
+     * @throws `ReferenceError` if the pattern or don't care string is null.
+     * @throws `TypeError` if the don't care string is empty.
+     */
+    getPartialMatchesOf(pattern: string, dontCareChar = "."): string[] {
+        if (pattern == null) {
+            throw "Null pattern."
+        }
+        if (dontCareChar == null) {
+            throw "Null dontCareChar."
+        }
+        if (dontCareChar.length === 0) {
+            throw "Empty dontCareChar."
+        }
+        if (pattern.length === 0) {
+            return this._hasEmpty ? [""] : []
+        }
+
+        const dc = dontCareChar.charCodeAt(0)
+        const matches: string[] = []
+        this._getPartialMatchesOf(0, pattern, 0, dc, [], matches)
+        return matches
+    }
+
+    /**
      * Returns whether this set contains the specified string.
      * If passed a non-string value, returns false.
      *
@@ -500,6 +533,51 @@ class TernaryStringSet {
             availChars[cp]++
         }
         this._getArrangementsOf(tree[node + 3], availChars, prefix, matches)
+    }
+
+    protected _getPartialMatchesOf(
+        node: number,
+        pattern: string,
+        i: number,
+        dc: number,
+        prefix: number[],
+        matches: string[],
+    ): void {
+        const tree = this._tree
+        if (node >= tree.length) {
+            return
+        }
+
+        const cp = pattern.charCodeAt(i)
+        const treeCp = tree[node] & TernaryStringSet.CP_MASK
+        if (cp < treeCp || cp === dc) {
+            this._getPartialMatchesOf(
+                tree[node + 1],
+                pattern,
+                i,
+                dc,
+                prefix,
+                matches,
+            )
+        }
+        if (cp === treeCp || cp === dc) {
+            const i_ = i + (cp >= TernaryStringSet.CP_MIN_SURROGATE ? 2 : 1)
+            prefix.push(treeCp)
+            if (i_ >= pattern.length) {
+                if (tree[node] & TernaryStringSet.EOS) {
+                    matches.push(TernaryStringSet.fromCodePoints(prefix))
+                }
+            } else {
+                this._getPartialMatchesOf(
+                    tree[node + 3],
+                    pattern,
+                    i,
+                    dc,
+                    prefix,
+                    matches,
+                )
+            }
+        }
     }
 
     protected getStringFromCharArray(codes: number[]): string {
