@@ -570,14 +570,25 @@ class TernaryStringSet {
                 }
             } else {
                 this._getPartialMatchesOf(
-                    tree[node + 3],
+                    tree[node + 2],
                     pattern,
-                    i,
+                    i_,
                     dc,
                     prefix,
                     matches,
                 )
             }
+            prefix.pop()
+        }
+        if (cp > treeCp || cp === dc) {
+            this._getPartialMatchesOf(
+                tree[node + 3],
+                pattern,
+                i,
+                dc,
+                prefix,
+                matches,
+            )
         }
     }
 
