@@ -406,6 +406,87 @@ class TernaryStringSet {
     }
 
     /**
+     * Returns an array of all strings in the set that are within the specified edit distance
+     * of the given pattern string. A string is within edit distance *n* of the pattern if
+     * it can be transformed into the pattern with no more than *n* insertions, deletions,
+     * or substitutions. For example:
+     *  - `cat` is edit distance 0 from itself;
+     *  - `at` is edit distance 1 from `cat` (1 deletion);
+     *  - `cot` is edit distance 1 from `cat` (1 substitution); and
+     *  - `coats` is edit distance 2 from `cat` (2 insertions).
+     *
+     * @param pattern A pattern string matched against the strings in the set.
+     * @param distance The maximum number of edits to apply to the pattern string.
+     *   May be Infinity to allow any number of edits.
+     * @returns A (possibly empty) array of strings from the set that match the pattern.
+     * @throws `ReferenceError` if the pattern is null.
+     * @throws `TypeError` if the distance is not a number.
+     * @throws `RangeError` if the distance is negative.
+     */
+    public getWithinEditDistanceOf(pattern: string, distance: number): string[] {
+        if (pattern == null) {
+            throw "Null pattern."
+        }
+
+        distance = TernaryStringSet.checkDistance(distance)
+
+        // Only the string itself is within distance 0.
+        if (distance < 1) {
+            return this.has(pattern) ? [pattern] : []
+        }
+
+        // Once we start inserting and deleting characters,
+        // a standard traversal no longer guarantees sorted order.
+        // So, instead of collecting results in an array,
+        // we collect them in a temporary set.
+        const results: TernaryStringSet = new TernaryStringSet()
+
+        // Add "" if we can delete the pattern down to it.
+        if (this._hasEmpty && pattern.length <= distance) {
+            results.add("")
+        }
+
+        // We avoid redundant work by computing possible deletions
+        // ahead of time (*e.g.*, aaa deletes to aa 3 different ways).
+        let patterns: TernaryStringSet = new TernaryStringSet()
+        patterns.add(pattern)
+        for (let d: number = distance; d >= 0; --d) {
+            const reducedPatterns: TernaryStringSet = new TernaryStringSet()
+            if (patterns._hasEmpty) {
+                this._getWithinEditDistanceOf(0, [], 0, d, [], results)
+            }
+
+            // Make patterns for the next iteration by deleting
+            // each character in turn from this iteration's patterns.
+            // abc => ab ac bc => a b c => empty string
+            patterns.visitCodePoints(0, [], (cp) => {
+                this._getWithinEditDistanceOf(0, cp, 0, d, [], results)
+                if (d > 0 && cp.length > 0) {
+                    if (cp.length === 1) {
+                        reducedPatterns._hasEmpty = true
+                    } else {
+                        const delete1: number[] = []
+                        for (let i: number = 0; i < cp.length; ++i) {
+                            for (let j: number = 0; j < i; ++j) {
+                                delete1[j] = cp[j]
+                            }
+                            for (let j = i + 1; j < cp.length; ++j) {
+                                delete1[j - 1] = cp[j]
+                            }
+                            reducedPatterns.addCodePoints(0, delete1, 0)
+                        }
+                    }
+                }
+            })
+            if (patterns._hasEmpty) {
+                this._getWithinEditDistanceOf(0, [], 0, d, [], results)
+            }
+            patterns = reducedPatterns
+        }
+        return results.toArray()
+    }
+
+    /**
      * Returns an array of all strings in the set that are within the specified Hamming distance
      * of the given pattern string. A string is within Hamming distance *n* of the pattern if at
      * most *n* of its code points are different from those of the pattern. For example:
@@ -544,6 +625,50 @@ class TernaryStringSet {
         this._addAll(strings, mid + 1, end + 1)
     }
 
+    /**
+     * Adds a string described as an array of numeric code points.
+     * Does not handle adding empty strings.
+     * Does not check if the tree needs to be decompacted.
+     *
+     * @param node The subtree from which to begin adding (0 for root).
+     * @param s The non-null array of code points to add.
+     * @param i The array index of the code point to start from (0 to add entire string).
+     */
+    protected addCodePoints(node: number, s: number[], i: number): number {
+        const tree = this._tree
+        const cp = s[i]
+
+        if (node >= tree.length) {
+            node = tree.length
+            if (node >= TernaryStringSet.NODE_CEILING) {
+                throw "Cannot add more strings."
+            }
+            tree.push(cp)
+            tree.push(TernaryStringSet.NUL)
+            tree.push(TernaryStringSet.NUL)
+            tree.push(TernaryStringSet.NUL)
+        }
+
+        const treeCp = tree[node] & TernaryStringSet.CP_MASK
+        if (cp < treeCp) {
+            tree[node + 1] = this.addCodePoints(tree[node + 1], s, i)
+        } else if (cp > treeCp) {
+            tree[node + 3] = this.addCodePoints(tree[node + 3], s, i)
+        } else {
+            i += cp >= TernaryStringSet.CP_MIN_SURROGATE ? 2 : 1
+            if (i >= s.length) {
+                if ((tree[node] & TernaryStringSet.EOS) === 0) {
+                    tree[node] |= TernaryStringSet.EOS
+                    ++this._size
+                }
+            } else {
+                tree[node + 2] = this.addCodePoints(tree[node + 2], s, i)
+            }
+        }
+
+        return node
+    }
+
     protected _delete(node: number, s: string, i: number, c: number): boolean {
         const tree: number[] = this._tree
         if (node >= tree.length) {
@@ -652,6 +777,67 @@ class TernaryStringSet {
             toReturn += String.fromCharCode(c)
         }
         return toReturn
+    }
+
+    protected _getWithinEditDistanceOf(
+        node: number,
+        pat: number[],
+        i: number,
+        dist: number,
+        prefix: number[],
+        out: TernaryStringSet,
+    ): void {
+        const tree = this._tree
+        if (node >= tree.length || dist < 0) {
+            return
+        }
+
+        const treeCp = tree[node] & TernaryStringSet.CP_MASK
+        const eos = tree[node] & TernaryStringSet.EOS
+
+        if (i < pat.length) {
+            const cp = pat[i]
+            const i_ = i + 1
+            const dist_ = dist - 1
+
+            if (cp === treeCp) {
+                // Char is a match; most to next char without using dist.
+                prefix.push(cp)
+                if (eos && i_ + dist >= pat.length) {
+                    out.addCodePoints(0, prefix, 0)
+                }
+                this._getWithinEditDistanceOf(tree[node + 2], pat, i_, dist, prefix, out)
+                prefix.pop()
+            } else if (dist > 0) {
+                // Char is not a match; try with edits.
+                prefix.push(treeCp)
+                if (eos && i + dist >= pat.length) {
+                    out.addCodePoints(0, prefix, 0)
+                }
+
+                // Insert the tree's code point ahead of the pattern's.
+                this._getWithinEditDistanceOf(tree[node + 2], pat, i, dist_, prefix, out)
+
+                // Substitute the tree's code point for the pattern's.
+                this._getWithinEditDistanceOf(tree[node + 2], pat, i_, dist_, prefix, out)
+                prefix.pop()
+            }
+            if (cp < treeCp || dist > 0) {
+                this._getWithinEditDistanceOf(tree[node + 1], pat, i, dist, prefix, out)
+            }
+            if (cp > treeCp || dist > 0) {
+                this._getWithinEditDistanceOf(tree[node + 3], pat, i, dist, prefix, out)
+            }
+        } else if (dist > 0) {
+            prefix.push(treeCp)
+            if (eos) {
+                out.addCodePoints(0, prefix, 0)
+            }
+            this._getWithinEditDistanceOf(tree[node + 2], pat, i, dist - 1, prefix, out)
+            prefix.pop()
+            this._getWithinEditDistanceOf(tree[node + 1], pat, i, dist, prefix, out)
+            this._getWithinEditDistanceOf(tree[node + 3], pat, i, dist, prefix, out)
+        }
     }
 
     protected _getWithinHammingDistanceOf(
