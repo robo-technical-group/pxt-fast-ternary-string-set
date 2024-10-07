@@ -1,4 +1,4 @@
-// meta={"simUrl":"https://trg-arcade.userpxt.io/v1.12.56/---simulator","cdnUrl":"https://pxt.azureedge.net","version":"1.7.0","target":"arcade","targetVersion":"1.12.56","repo":"robo-technical-group/pxt-fast-ternary-string-set"}
+// meta={"simUrl":"https://trg-arcade.userpxt.io/v1.12.56/---simulator","cdnUrl":"https://pxt.azureedge.net","version":"1.7.1","target":"arcade","targetVersion":"1.12.56","repo":"robo-technical-group/pxt-fast-ternary-string-set"}
 // total=1333497 new=5.56% cached=88.71% other=5.73%
 (function (ectx) {
 'use strict';
@@ -457,7 +457,7 @@ const pxsim_pxtrt = pxsim.pxtrt;
 const pxsim_numops = pxsim.numops;
 
 
-function _main___P618783(s) {
+function _main___P738539(s) {
 let r0 = s.r0, step = s.pc;
 s.pc = -1;
 
@@ -855,9 +855,9 @@ switch (step) {
     s.callLocIdx = 62; s.pc = 38; return s.tmp_0;
   case 38:
     r0 = s.retval;
-    globals.TernaryStringSet_NUL___617225 = (2147483647);
-    r0 = (globals.TernaryStringSet_NUL___617225 - 3);
-    globals.TernaryStringSet_NODE_CEILING___617231 = (r0);
+    globals.TernaryStringSet_NUL___736496 = (2147483647);
+    r0 = (globals.TernaryStringSet_NUL___736496 - 3);
+    globals.TernaryStringSet_NODE_CEILING___736502 = (r0);
     globals.allPassed___563093 = (true);
     r0 = pxsim_numops_toBoolDecr(globals.allPassed___563093);
     if (!r0) { step = 1; continue; }
@@ -880,13 +880,13 @@ switch (step) {
     return leave(s, r0)
   default: oops()
 } } }
-_main___P618783.info = {"start":0,"length":0,"line":0,"column":0,"endLine":0,"endColumn":0,"fileName":"main.ts","functionName":"<main>","argumentNames":[]}
-_main___P618783.continuations = [  ]
+_main___P738539.info = {"start":0,"length":0,"line":0,"column":0,"endLine":0,"endColumn":0,"fileName":"main.ts","functionName":"<main>","argumentNames":[]}
+_main___P738539.continuations = [  ]
 
-function _main___P618783_mk(s) {
+function _main___P738539_mk(s) {
     checkStack(s.depth);
     return {
-        parent: s, fn: _main___P618783, depth: s.depth + 1,
+        parent: s, fn: _main___P738539, depth: s.depth + 1,
         pc: 0, retval: undefined, r0: undefined, overwrittenPC: false, lambdaArgs: null,
   tmp_0: undefined,
   tmp_1: undefined,
@@ -45000,7 +45000,7 @@ const sprites_BaseSpriteSayRenderer__C560993_VT = mkVTable({
   },
 });
 
-const breakpoints = setupDebugger(1, ["TernaryStringSet_NUL___617225","TernaryStringSet_NODE_CEILING___617231","allPassed___563093"])
+const breakpoints = setupDebugger(1, ["TernaryStringSet_NUL___736496","TernaryStringSet_NODE_CEILING___736502","allPassed___563093"])
 
-return _main___P618783
+return _main___P738539
 })
