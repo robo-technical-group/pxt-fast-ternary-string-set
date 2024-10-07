@@ -374,12 +374,13 @@ class TernaryStringSet {
      * @throws `ReferenceError` if the pattern or don't care string is null.
      * @throws `TypeError` if the don't care string is empty.
      */
-    getPartialMatchesOf(pattern: string, dontCareChar = "."): string[] {
+    getPartialMatchesOf(pattern: string, dontCareChar: string = null): string[] {
         if (pattern == null) {
             throw "Null pattern."
         }
         if (dontCareChar == null) {
-            throw "Null dontCareChar."
+            // throw "Null dontCareChar."
+            dontCareChar = "."
         }
         if (dontCareChar.length === 0) {
             throw "Empty dontCareChar."
