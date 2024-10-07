@@ -196,6 +196,16 @@ class TernaryStringSet {
         this._size = 0
     }
 
+    public static checkDistance(distance: number): number {
+        if (distance !== distance) {
+            throw "Distance is not a number."
+        }
+        if (distance < 0) {
+            throw "Distance must be non-negative."
+        }
+        return Math.min(Math.trunc(distance), TernaryStringSet.NUL)
+    }
+
     public decompact(): void {
         throw 'decompact(): Not yet implemented.'
     }
@@ -374,7 +384,7 @@ class TernaryStringSet {
      * @throws `ReferenceError` if the pattern or don't care string is null.
      * @throws `TypeError` if the don't care string is empty.
      */
-    getPartialMatchesOf(pattern: string, dontCareChar: string = null): string[] {
+    public getPartialMatchesOf(pattern: string, dontCareChar: string = null): string[] {
         if (pattern == null) {
             throw "Null pattern."
         }
@@ -392,6 +402,50 @@ class TernaryStringSet {
         const dc = dontCareChar.charCodeAt(0)
         const matches: string[] = []
         this._getPartialMatchesOf(0, pattern, 0, dc, [], matches)
+        return matches
+    }
+
+    /**
+     * Returns an array of all strings in the set that are within the specified Hamming distance
+     * of the given pattern string. A string is within Hamming distance *n* of the pattern if at
+     * most *n* of its code points are different from those of the pattern. For example:
+     *  - `cat` is Hamming distance 0 from itself;
+     *  - `cot` is Hamming distance 1 from `cat`;
+     *  - `cop` is Hamming distance 2 from `cat`; and
+     *  - `top` is Hamming distance 3 from `cat`.
+     *
+     * @param pattern A pattern string matched against the strings in the set.
+     * @param distance The maximum number of code point deviations to allow from the pattern string.
+     *     May be Infinity to allow any number.
+     * @returns A (possibly empty) array of strings from the set that match the pattern.
+     * @throws `ReferenceError` if the pattern is null.
+     * @throws `TypeError` if the distance is not a number.
+     * @throws `RangeError` if the distance is negative.
+     */
+    public getWithinHammingDistanceOf(pattern: string, distance: number): string[] {
+        if (pattern == null) {
+            throw "Null pattern."
+        }
+        distance = TernaryStringSet.checkDistance(distance)
+
+        // Only the string itself is within distance 0 or matches empty pattern.
+        if (distance < 1 || pattern.length === 0) {
+            return this.has(pattern) ? [pattern] : []
+        }
+
+        const matches: string[] = []
+
+        // Optimize case where any string the same length as the pattern will match.
+        if (distance >= pattern.length) {
+            this.visitCodePoints(0, [], (prefix) => {
+                if (prefix.length === pattern.length) {
+                    matches.push(TernaryStringSet.fromCodePoints(prefix))
+                }
+            })
+            return matches
+        }
+
+        this._getWithinHammingDistanceOf(0, pattern, 0, distance, [], matches)
         return matches
     }
 
@@ -598,6 +652,43 @@ class TernaryStringSet {
             toReturn += String.fromCharCode(c)
         }
         return toReturn
+    }
+
+    protected _getWithinHammingDistanceOf(
+        node: number,
+        pat: string,
+        i: number,
+        dist: number,
+        prefix: number[],
+        out: string[],
+    ): void {
+        const tree = this._tree
+        if (node >= tree.length || dist < 0) {
+            return
+        }
+
+        const cp = pat.charCodeAt(i)
+        const treeCp = tree[node] & TernaryStringSet.CP_MASK
+        if (cp < treeCp || dist > 0) {
+            this._getWithinHammingDistanceOf(tree[node + 1], pat, i, dist, prefix, out)
+        }
+
+        prefix.push(treeCp)
+        if (tree[node] & TernaryStringSet.EOS && pat.length === prefix.length) {
+            if (dist > 0 || cp === treeCp) {
+                out.push(TernaryStringSet.fromCodePoints(prefix))
+            }
+            // No need to recurse; children of this equals branch are too long.
+        } else {
+            const i_ = i + (cp >= TernaryStringSet.CP_MIN_SURROGATE ? 2 : 1)
+            const dist_ = dist - (cp === treeCp ? 0 : 1)
+            this._getWithinHammingDistanceOf(tree[node + 2], pat, i_, dist_, prefix, out)
+        }
+        prefix.pop()
+
+        if (cp > treeCp || dist > 0) {
+            this._getWithinHammingDistanceOf(tree[node + 3], pat, i, dist, prefix, out)
+        }
     }
 
     protected _has(node: number, s: string, i: number, c: number): boolean {
