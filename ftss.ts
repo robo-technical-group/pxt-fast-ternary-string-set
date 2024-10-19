@@ -345,6 +345,26 @@ class TernaryStringSet {
         return allDeleted
     }
 
+
+    /**
+     * Calls the specified callback function once for each string in this set, passing the string
+     * and this set. The string is passed as both value and key to align with `Map.forEach`.
+     *
+     * @param callbackFn The function to call for each string.
+     */
+    public forEach(
+        callbackFn: (value: string, key: string, set: TernaryStringSet) => void
+    ): void {
+        if (this._hasEmpty) {
+            const s: string = ""
+            callbackFn(s, s, this)
+        }
+        this.visitCodePoints(0, [], (prefix) => {
+            const s: string = TernaryStringSet.fromCodePoints(prefix)
+            callbackFn(s, s, this)
+        })
+    }
+
     public static fromCodePoints(s: number[]): string {
         let toReturn: string = ''
         for (let c of s) {
