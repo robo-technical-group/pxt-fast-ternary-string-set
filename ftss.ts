@@ -103,6 +103,10 @@ class TernaryStringSet {
     /**
      * Public properties
      */
+    public get compacted(): boolean {
+        return this._compact
+    }
+
     public get size(): number {
         return this._size
     }
@@ -186,14 +190,29 @@ class TernaryStringSet {
         }
     }
 
+
     /**
-     * Removes all strings from this set.
+     * Balances the tree structure, minimizing the depth of the tree.
+     * This may improve search performance, especially after adding or deleting a large
+     * number of strings.
+     *
+     * It is not normally necessary to call this method as long as care was taken not
+     * to add large numbers of strings in lexicographic order. That said, two scenarios
+     * where this methof may be particularly useful are:
+     *  - If the set will be used in two phases, with strings being added in one phase
+     *    followed by a phase of extensive search operations.
+     *  - If the string is about to be serialized to a buffer for future use.
+     *
+     * As detailed under `addAll`, if the entire contents of the set were added by a single
+     * call to `addAll` using a sorted array, the tree is already balanced and calling this
+     * method will have no benefit.
+     *
+     * **Note:** This method undoes the effect of `compact()`. If you want to balance and
+     * compact the tree, be sure to balance it first.
      */
-    public clear(): void {
-        this._tree = []
-        this._hasEmpty = false
+    public balance(): void {
+        this._tree = new TernaryStringSet(this.toArray())._tree
         this._compact = false
-        this._size = 0
     }
 
     public static checkDistance(distance: number): number {
@@ -206,8 +225,81 @@ class TernaryStringSet {
         return Math.min(Math.trunc(distance), TernaryStringSet.NUL)
     }
 
-    public decompact(): void {
-        throw 'decompact(): Not yet implemented.'
+    /**
+     * Removes all strings from this set.
+     */
+    public clear(): void {
+        this._tree = []
+        this._hasEmpty = false
+        this._compact = false
+        this._size = 0
+    }
+
+    /**
+     * Compacts the set to reduce its memory footprint and improve search performance.
+     * Compaction allows certain nodes of the underlying tree to be shared, effectively
+     * converting it to a graph. For large sets, the result is typically a *significantly*
+     * smaller footprint. The tradeoff is that compacted sets cannot be mutated.
+     * Any attempt to do so, such as adding or deleting a string, will automatically
+     * decompact the set to a its standard tree form, if necessary, before performing
+     * the requested operation.
+     *
+     * Compaction is an excellent option if the primary purpose of a set is matching
+     * or searching against a fixed string collection. Since compaction and decompaction
+     * are both expensive operations, it may not be suitable if the set is expected to
+     * be modified intermittently.
+     */
+    public compact(): void {
+        if (this._compact || this._tree.length == 0) {
+            return
+        }
+
+        /*
+
+        Theory of operation:
+        
+        In a ternary tree, all strings with the same prefix share the nodes
+        that make up that prefix. The compact operation does much the same thing,
+        but for suffixes. It does this by deduplicating identical tree nodes.
+        For example, every string that ends in "e" and is not a prefix of any other
+        strings looks the same: an "e" node with three NUL child branch pointers.
+        But these can be distributed throughout the tree. Consider a tree containing only
+        "ape" and "haze": we could save space by having only a single copy of the "e" node
+        and pointing to it from both the "p" node and the "z" node.
+        
+        So: to compact the tree, we iterate over each node and build a map of all unique nodes.
+        The first time we come across a node, we add it to the map, mapping the node to
+        a number which is the next available slot in the new, compacted, output array we will write.
+
+        Once we have built the map, we iterate over the nodes again. This time we look up each node
+        in the previously built map to find the slot it was assigned in the output array. If the
+        slot is past the end of the array, then we haven't added it to the output yet. We can
+        write the node's value unchanged, but the three pointers to the child branches need to
+        be rewritten to point to the new, deduplicated equivalent of the nodes that they point to now.
+        Thus for each branch, if the pointer is NUL we write it unchanged. Otherwise we look up the node
+        that the branch points to in our unique node map to get its new slot number (i.e. array offset)
+        and write the translated address.
+
+        After doing this once, we will have deduplicated just the leaf nodes. In the original tree,
+        only nodes with no children can be duplicates, because their branches are all NUL.
+        But after rewriting the tree, some of the parents of those leaf nodes may now point to
+        *shared* leaf nodes, so they themselves might now have duplicates in other parts of the tree.
+        So, we can repeat the rewriting step above to remove these newly generated duplicates as well.
+        This may again lead to new duplicates, and so on: rewriting continues until the output
+        doesn't shrink anymore.
+
+        */
+        let source: number[] = this._tree
+        this._tree = null
+        while (true) {
+            const compacted: number[] = TernaryStringSet.compactionPass(source)
+            if (compacted.length === source.length) {
+                this._tree = compacted
+                break
+            }
+            source = compacted
+        }
+        this._compact = true
     }
 
     /**
@@ -667,6 +759,93 @@ class TernaryStringSet {
         }
 
         return node
+    }
+
+    /**
+     * Performs a single compaction pass; see the `compact()` method.
+     */
+    protected static compactionPass(tree: number[]): number[] {
+        /**
+         * Nested sparse arrays are used to map node offsets ("pointers")
+         * in the original tree array to "slots" (a node's index in the new array).
+         */
+        let nextSlot: number = 0
+        const nodeMap: number[][][][] = []
+
+        /**
+         * If a node has already been assigned a slot, then return that slot.
+         * Otherwise, assign it the next available slot and return that.
+         */
+        function mapping(i: number): number {
+            // slot = nodeMap[value][ltPointer][eqPointer][gtPointer]
+            let ltMap = nodeMap[tree[i]]
+            if (ltMap == null || ltMap == undefined) {
+                nodeMap[tree[i]] = ltMap = []
+            }
+            let eqMap = ltMap[tree[i + 1]]
+            if (eqMap == null || eqMap == undefined) {
+                ltMap[tree[i + 1]] = eqMap = []
+            }
+            let gtMap = eqMap[tree[i + 2]]
+            if (gtMap == null || gtMap == undefined) {
+                eqMap[tree[i + 2]] = gtMap = []
+            }
+            let slot = gtMap[tree[i + 3]]
+            if (slot == null || slot == undefined) {
+                gtMap[tree[i + 3]] = slot = nextSlot
+                nextSlot += 4
+            }
+            return slot
+        }
+
+        // Create a map of unique nodes.
+        for (let i: number = 0; i < tree.length; i += 4) {
+            mapping(i)
+        }
+
+        // Check if the tree would shrink before bothering to rewrite it.
+        if (nextSlot === tree.length) {
+            return tree
+        }
+
+        // Rewrite tree.
+        const compactTree: number[] = []
+        for (let i: number = 0; i < tree.length; i += 4) {
+            const slot = mapping(i)
+
+            /**
+             * If the unique version of the node hasn't been written yet,
+             * then append it to the output array.
+             */
+            if (slot >= compactTree.length) {
+                if (slot > compactTree.length) {
+                    throw "Assertion error in CompactionPass."
+                }
+
+                // Write the node value unchanged.
+                compactTree[slot] = tree[i]
+
+                /**
+                 * Write the pointers for each child branch,
+                 * but use the new slot for whatever child node is found there.
+                 */
+                compactTree[slot + 1] = mapping(tree[i + 1])
+                compactTree[slot + 2] = mapping(tree[i + 2])
+                compactTree[slot + 3] = mapping(tree[i + 3])
+            }
+        }
+
+        return compactTree
+    }
+
+    /**
+     * If the tree is currently compacted,
+     * convert it to loose (non-compact) form.
+     */
+    protected decompact(): void {
+        if (this._compact) {
+            this.balance()
+        }
     }
 
     protected _delete(node: number, s: string, i: number, c: number): boolean {
