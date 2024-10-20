@@ -5,6 +5,15 @@
    Copyright © 2023 by Christopher Jennings.
    Licensed under an MIT license (see link above for details).
 !*/
+interface DecodedBuffer {
+    version: number
+    hasEmpty: boolean
+    compact: boolean
+    v2b16: boolean
+    size: number
+    tree: number[]
+}
+
 interface TernaryTreeStats {
     /** The number of strings in the tree. Equivalent to the `size` property. */
     size: number;
@@ -36,15 +45,27 @@ class TernaryStringSet {
      * Constants
      */
     /** Node index indicating that no node is present. */
-    protected static readonly NUL = ~(1 << 31)
+    protected static readonly NUL: number = ~(1 << 31)
     /** First node index that would run off of the end of the array. */
-    protected static readonly NODE_CEILING = TernaryStringSet.NUL - 3
+    protected static readonly NODE_CEILING: number = TernaryStringSet.NUL - 3
     /** End-of-string flag: set on node values when that node also marks the end of a string. */
-    protected static readonly EOS = 1 << 21
+    protected static readonly EOS: number = 1 << 21
     /** Mask to extract the code point from a node value, ignoring flags. */
-    protected static readonly CP_MASK = TernaryStringSet.EOS - 1
+    protected static readonly CP_MASK: number = TernaryStringSet.EOS - 1
     /** Smallest code point that requires a surrogate pair. */
-    protected static readonly CP_MIN_SURROGATE = 0x10000
+    protected static readonly CP_MIN_SURROGATE: number = 0x10000
+    /** Version number for the data buffer format. */
+    protected static readonly BUFF_VERSION: number = 3;
+    /** Magic number used by buffer data format. */
+    protected static readonly BUFF_MAGIC: number = 84;
+    /** Buffer format header size (4 bytes magic/properties + 4 bytes node count). */
+    protected static readonly BUFF_HEAD_SIZE: number = 8;
+    /** Buffer format flag bit: set has empty string */
+    protected static readonly BF_HAS_EMPTY: number = 1;
+    /** Buffer format flag bit: set is compact */
+    protected static readonly BF_COMPACT: number = 2;
+    /** Buffer format flag bit: v2 file uses 16-bit integers for branch pointers. */
+    protected static readonly BF_BRANCH16: number = 4;
 
     /**
      * Tree data, an integer array laid out as follows:
@@ -365,6 +386,31 @@ class TernaryStringSet {
         })
     }
 
+    /**
+     * Creates a new string set from data in a buffer previously created with `toBuffer`.
+     * Buffers created by an older version of this library can be deserialized by newer versions
+     * of this library.
+     * The reverse may or may not be true, depending on the specific versions involved.
+     *
+     * @param buffer The buffer to recreate the set from.
+     * @returns A new set that recreates the original set that was stored in the buffer.
+     * @throws `ReferenceError` if the specified buffer is null.
+     * @throws `TypeError` if the buffer data is invalid or from an unsupported version.
+     */
+    public static fromBuffer(buffer: ArrayBuffer): TernaryStringSet {
+        if (buffer == null) {
+            throw "Null buffer."
+        }
+
+        const h: DecodedBuffer = TernaryStringSet.decode(buffer)
+        const set: TernaryStringSet = new TernaryStringSet()
+        set._hasEmpty = h.hasEmpty
+        set._compact = h.compact
+        set._size = h.size
+        set._tree = h.tree
+        return set
+    }
+
     public static fromCodePoints(s: number[]): string {
         let toReturn: string = ''
         for (let c of s) {
@@ -668,6 +714,21 @@ class TernaryStringSet {
     }
 
     /**
+     * Returns a buffer whose contents can be used to recreate this set.
+     * The returned data is independent of the platform on which it is created.
+     * The buffer content and length will depend on the state of the set's
+     * underlying structure. For this reason you may wish to `balance()`
+     * and/or `compact()` the set first.
+     *
+     * @returns A non-null buffer.
+     */
+    public toBuffer(): ArrayBuffer {
+        return TernaryStringSet.encode(
+            this._size, this._hasEmpty, this._compact, this._tree
+        )
+    }
+
+    /**
      * Converts a string to an array of numeric code points.
      *
      * @param s A non-null string.
@@ -781,6 +842,10 @@ class TernaryStringSet {
         return node
     }
 
+    protected static badDecode(why: string) {
+        throw "Invalid set data: " + why
+    }
+
     /**
      * Performs a single compaction pass; see the `compact()` method.
      */
@@ -858,6 +923,138 @@ class TernaryStringSet {
         return compactTree
     }
 
+    protected static decode(buff: ArrayBuffer): DecodedBuffer {
+        const view: DataView = new DataView(buff)
+        const decoded: DecodedBuffer = TernaryStringSet.decodeHeader(view)
+        if (decoded.version < 3) {
+            TernaryStringSet.decodeV1V2(decoded, view)
+        } else {
+            TernaryStringSet.decodeV3(decoded, view)
+        }
+        return decoded
+    }
+
+    protected static decodeHeader(view: DataView): DecodedBuffer {
+        const h: DecodedBuffer = {} as DecodedBuffer
+        if (view.byteLength < TernaryStringSet.BUFF_HEAD_SIZE) {
+            TernaryStringSet.badDecode("Header too short.")
+        }
+        if (
+            view.getUint8(0) !== TernaryStringSet.BUFF_MAGIC ||
+            view.getUint8(1) !== TernaryStringSet.BUFF_MAGIC
+        ) {
+            TernaryStringSet.badDecode("Header has bad magic codes.")
+        }
+        h.version = view.getUint8(2)
+        if (h.version < 1 || h.version > TernaryStringSet.BUFF_VERSION) {
+            TernaryStringSet.badDecode(`Unsupported version ${h.version}`)
+        }
+
+        const flags: number = view.getUint8(3)
+        h.hasEmpty = (flags & TernaryStringSet.BF_HAS_EMPTY) !== 0
+        h.compact = (flags & TernaryStringSet.BF_COMPACT) !== 0
+        h.v2b16 = (flags & TernaryStringSet.BF_BRANCH16) !== 0
+
+        if (h.v2b16 && h.version !== 2) {
+            TernaryStringSet.badDecode("B16 without V2.")
+        }
+        if ((flags & ~(TernaryStringSet.BF_HAS_EMPTY | TernaryStringSet.BF_COMPACT | TernaryStringSet.BF_BRANCH16)) !== 0) {
+            TernaryStringSet.badDecode("Unknown flag value.")
+        }
+
+        h.size = view.getUint32(4)
+        h.tree = []
+        return h
+    }
+
+    protected static decodeV1V2(h: DecodedBuffer, view: DataView): void {
+        const tree: number[] = h.tree
+        const b16: boolean = h.v2b16
+        for (let b: number = TernaryStringSet.BUFF_HEAD_SIZE; b < view.byteLength; ) {
+            tree.push(view.getUint32(b))
+            b += 4
+            if (b16) {
+                tree.push(view.getUint16(b))
+                b += 2
+                tree.push(view.getUint16(b))
+                b += 2
+                tree.push(view.getUint16(b))
+                b += 2
+            } else {
+                tree.push(view.getUint32(b))
+                b += 4
+                tree.push(view.getUint32(b))
+                b += 4
+                tree.push(view.getUint32(b))
+                b += 4
+            }
+        }
+        if (h.version === 1) {
+            /**
+             * V1 didn't store size.
+             * Need to count the size, but we can just
+             * count EOS flags since V1 buffers cannot be compact.
+             */
+            h.size = h.hasEmpty ? 1 : 0
+            for (let node: number = 0; node < tree.length; node += 4) {
+                if (tree[node] & TernaryStringSet.EOS) {
+                    ++h.size
+                }
+            }
+        }
+    }
+
+    protected static decodeV3(h: DecodedBuffer, view: DataView): void {
+        const tree: number[] = h.tree
+        for (let b = TernaryStringSet.BUFF_HEAD_SIZE; b < view.byteLength;) {
+            const encoding: number = view.getUint8(b++)
+
+            // Decode code point.
+            const cpbits: number = (encoding >>> 6) & 3
+            if (cpbits === 0) {
+                tree.push(view.getUint32(b - 1) * 0xffffff)
+                b += 3
+            } else if (cpbits === 1) {
+                let cp: number = view.getUint16(b)
+                if (cp & 0x8000) {
+                    cp = (cp & 0x7fff) | TernaryStringSet.EOS
+                }
+                tree.push(cp)
+                b += 2
+            } else if (cpbits === 2) {
+                let cp: number = view.getUint8(b++)
+                if (cp & 0x80) {
+                    cp = (cp & 0x7f) | TernaryStringSet.EOS
+                }
+                tree.push(cp)
+            } else {
+                tree.push(0x65) // Letter "e"
+            }
+
+            // Decode branch pointers.
+            let branchShift: number = 4
+            for (let branch: number = 1; branch <= 3; ++branch) {
+                const branchBits: number = (encoding >>> branchShift) & 3
+                branchShift -= 2
+
+                if (branchBits === 0) {
+                    tree.push(view.getUint32(b) * 4)
+                    b += 4
+                } else if (branchBits === 1) {
+                    let int24: number = view.getUint8(b) << 16
+                    int24 |= view.getUint16(b + 1)
+                    tree.push(int24 * 4)
+                    b += 3
+                } else if (branchBits === 2) {
+                    tree.push(view.getUint16(b) * 4)
+                    b += 2
+                } else {
+                    tree.push(TernaryStringSet.NUL)
+                }
+            }
+        }
+    }
+
     /**
      * If the tree is currently compacted,
      * convert it to loose (non-compact) form.
@@ -891,6 +1088,92 @@ class TernaryStringSet {
                 return this._delete(tree[node + 2], s, i, s.charCodeAt(i))
             }
         }
+    }
+
+    protected static encode(
+        size: number,
+        hasEmpty: boolean,
+        compact: boolean,
+        tree: number[]
+    ): ArrayBuffer {
+        const buff: ArrayBuffer = new ArrayBuffer(
+            TernaryStringSet.BUFF_HEAD_SIZE + 16 * tree.length
+        )
+        const view = new DataView(buff)
+
+        // Header
+        //    - magic bytes "TT" for ternary tree.
+        view.setUint8(0, TernaryStringSet.BUFF_MAGIC)
+        view.setUint8(1, TernaryStringSet.BUFF_MAGIC)
+        //    - version number
+        view.setUint8(2, TernaryStringSet.BUFF_VERSION)
+        //    - flag bits
+        const treeFlags: number =
+            (hasEmpty ? TernaryStringSet.BF_HAS_EMPTY : 0) |
+            (compact ? TernaryStringSet.BF_COMPACT : 0)
+        view.setUint8(3, treeFlags)
+        //    - set size
+        view.setUint32(4, size)
+
+        // Track buffer bytes used and offset of next write.
+        let blen: number = TernaryStringSet.BUFF_HEAD_SIZE
+
+        // Encode and write each node sequentially.
+        for (let n: number = 0; n < tree.length; n += 4) {
+            const encodingOffset: number = blen++
+            let encoding: number = 0
+
+            // Write code point.
+            const cp: number = tree[n] & TernaryStringSet.CP_MASK
+            const eos: boolean = (tree[n] & TernaryStringSet.EOS) !== 0
+            if (tree[n] === 0x65) {
+                // Letter "e"
+                encoding = 3 << 6
+            } else if (cp > 0x7fff) {
+                view.setUint32(blen - 1, tree[n])
+                blen += 3
+            } else if (cp > 0x7f) {
+                encoding = 1 << 6
+                const int: number = cp | (eos ? 0x8000 : 0)
+                view.setUint16(blen, int)
+                blen += 2
+            } else {
+                encoding = 2 << 6
+                const int: number = cp | (eos ? 0x80 : 0)
+                view.setUint8(blen++, int)
+            }
+
+            // Write branch pointers.
+            let branchShift: number = 4
+            for (let branch: number = 1; branch <= 3; ++branch) {
+                let pointer: number = tree[n + branch]
+                if (pointer === TernaryStringSet.NUL) {
+                    encoding |= 3 << branchShift
+                } else {
+                    pointer /= 4
+                    if (pointer > 0xffffff) {
+                        view.setUint32(blen, pointer)
+                        blen += 4
+                    } else if (pointer > 0xffff) {
+                        encoding |= 1 << branchShift
+                        view.setUint8(blen, pointer >>> 16)
+                        view.setUint16(blen + 1, pointer & 0xffff)
+                        blen += 3
+                    } else {
+                        encoding |= 2 << branchShift
+                        view.setUint16(blen, pointer)
+                        blen += 2
+                    }
+                }
+                branchShift -= 2
+            }
+            view.setUint8(encodingOffset, encoding)
+        }
+
+        // Return the buffer, trimmed to actual bytes used.
+        return blen < buff.byteLength ?
+            buff.slice(0, blen) :
+            buff
     }
 
     protected _getArrangementsOf(node: number, availChars: number[], prefix: number[], matches: string[]) {

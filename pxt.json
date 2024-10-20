@@ -2,7 +2,8 @@
     "name": "pxt-fast-ternary-string-set",
     "version": "1.9.0",
     "dependencies": {
-        "device": "*"
+        "device": "*",
+        "pxt-typed-arrays": "github:robo-technical-group/pxt-typed-arrays#v1.1.0"
     },
     "files": [
         "main.ts",
