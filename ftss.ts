@@ -366,6 +366,43 @@ class TernaryStringSet {
         return allDeleted
     }
 
+    /**
+     * Returns whether this set contains exactly the same elements as the specified iterable.
+     * Any object is accepted for comparison; if it is not a set or iterable, the result
+     * is always `false`.
+     *
+     * @param rhs The set (or other object) to compare this set to.
+     * @returns True if the specified object is iterable, has the same number of elements
+     *   as this set, and this set also contains each of those elements.
+     */
+    public equals(rhs: any): boolean {
+        if (this === rhs) {
+            return true
+        }
+        if (!(rhs instanceof TernaryStringSet)) {
+            if (rhs == null) {
+                return false
+            }
+            try {
+                let s: string = rhs[0]
+            } catch {
+                return false
+            }
+            let rhsSize: number = 0
+            for (let el of (rhs as string[])) {
+                if (!this.has(el)) {
+                    return false
+                }
+                ++rhsSize
+            }
+            return this.size === rhsSize
+        }
+
+        if (this._size !== rhs.size) {
+            return false
+        }
+        return this.isSubsetOf(rhs)
+    }
 
     /**
      * Calls the specified callback function once for each string in this set, passing the string
@@ -703,6 +740,54 @@ class TernaryStringSet {
             return this._hasEmpty
         }
         return this._has(0, s, 0, s.charCodeAt(0))
+    }
+
+    /**
+     * Returns whether this set is a subset of the elements of the specified iterable,
+     * that is, whether every element in this set is also an element of the iterable.
+     *
+     * @param rhs The set to compare this set to.
+     * @returns True if this set is a proper subset of, or equal to, the specified iterable.
+     * @throws `TypeError` if the argument is not an iterable.
+     */
+    public isSubsetOf(rhs: any): boolean {
+        if (this === rhs) {
+            return true
+        }
+
+        if (!(rhs instanceof TernaryStringSet)) {
+            if (rhs == null) {
+                return false
+            }
+            const rhArray: string[] = rhs as string[]
+            if (this._size > rhArray.length) {
+                return false
+            }
+            for (let s of this.toArray()) {
+                if (rhArray.indexOf(s) < 0) {
+                    return false
+                }
+            }
+            return true
+        }
+
+        rhs = rhs as TernaryStringSet
+        if (this._size > rhs._size) {
+            return false
+        }
+        if (this._hasEmpty && !rhs.hasEmpty) {
+            return false
+        }
+
+        let subset: boolean = true
+        this.searchCodePoints(0, [], (s) => {
+            if (rhs._hasCodePoints(0, s, 0) < 0) {
+                subset = false
+                return true
+            }
+            return false
+        })
+        return subset
     }
 
     public toArray(): string[] {
@@ -1400,6 +1485,47 @@ class TernaryStringSet {
                 node : -node - 1
         }
         return this.hasCodePoints(tree[node + 2], s, i)
+    }
+
+    /**
+     * This behaves identically to `_visitCodePoints`, except that the
+     * `visitFn` is expected to return a boolean value that indicates
+     * whether or not the search (string visiting) should stop.
+     *
+     * @param node The starting node index (0 for tree root).
+     * @param prefix The non-null array that will hold string code points;
+     *     any existing elements are retained as a prefix of every string.
+     * @param visitFn The non-null function to invoke for each string; returning
+     *     `true` stops and returns without visiting more strings.
+     * @returns A boolean indicating if the search was stopped by the callback.
+     */
+    protected searchCodePoints(
+        node: number,
+        prefix: number[],
+        visitFn: (prefix: number[], node: number) => boolean
+    ): boolean {
+        const tree: number[] = this._tree
+        if (node >= tree.length) {
+            return false
+        }
+        if (this.searchCodePoints(tree[node + 1], prefix, visitFn)) {
+            return true
+        }
+        prefix.push(tree[node] & TernaryStringSet.CP_MASK)
+        if (tree[node] & TernaryStringSet.EOS) {
+            if (visitFn(prefix, node) === true) {
+                prefix.pop()
+                return true
+            }
+        }
+        if (this.searchCodePoints(tree[node + 2], prefix, visitFn)) {
+            return true
+        }
+        prefix.pop()
+        if (this.searchCodePoints(tree[node + 3], prefix, visitFn)) {
+            return true
+        }
+        return false
     }
 
     protected traverse(n: number, d: number): void {
