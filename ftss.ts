@@ -367,44 +367,6 @@ class TernaryStringSet {
     }
 
     /**
-     * Returns whether this set contains exactly the same elements as the specified iterable.
-     * Any object is accepted for comparison; if it is not a set or iterable, the result
-     * is always `false`.
-     *
-     * @param rhs The set (or other object) to compare this set to.
-     * @returns True if the specified object is iterable, has the same number of elements
-     *   as this set, and this set also contains each of those elements.
-     */
-    public equals(rhs: any): boolean {
-        if (this === rhs) {
-            return true
-        }
-        if (!(rhs instanceof TernaryStringSet)) {
-            if (rhs == null) {
-                return false
-            }
-            try {
-                let s: string = rhs[0]
-            } catch {
-                return false
-            }
-            let rhsSize: number = 0
-            for (let el of (rhs as string[])) {
-                if (!this.has(el)) {
-                    return false
-                }
-                ++rhsSize
-            }
-            return this.size === rhsSize
-        }
-
-        if (this._size !== rhs.size) {
-            return false
-        }
-        return this.isSubsetOf(rhs)
-    }
-
-    /**
      * Calls the specified callback function once for each string in this set, passing the string
      * and this set. The string is passed as both value and key to align with `Map.forEach`.
      *
@@ -740,54 +702,6 @@ class TernaryStringSet {
             return this._hasEmpty
         }
         return this._has(0, s, 0, s.charCodeAt(0))
-    }
-
-    /**
-     * Returns whether this set is a subset of the elements of the specified iterable,
-     * that is, whether every element in this set is also an element of the iterable.
-     *
-     * @param rhs The set to compare this set to.
-     * @returns True if this set is a proper subset of, or equal to, the specified iterable.
-     * @throws `TypeError` if the argument is not an iterable.
-     */
-    public isSubsetOf(rhs: any): boolean {
-        if (this === rhs) {
-            return true
-        }
-
-        if (!(rhs instanceof TernaryStringSet)) {
-            if (rhs == null) {
-                return false
-            }
-            const rhArray: string[] = rhs as string[]
-            if (this._size > rhArray.length) {
-                return false
-            }
-            for (let s of this.toArray()) {
-                if (rhArray.indexOf(s) < 0) {
-                    return false
-                }
-            }
-            return true
-        }
-
-        rhs = rhs as TernaryStringSet
-        if (this._size > rhs._size) {
-            return false
-        }
-        if (this._hasEmpty && !rhs.hasEmpty) {
-            return false
-        }
-
-        let subset: boolean = true
-        this.searchCodePoints(0, [], (s) => {
-            if (rhs._hasCodePoints(0, s, 0) < 0) {
-                subset = false
-                return true
-            }
-            return false
-        })
-        return subset
     }
 
     public toArray(): string[] {
