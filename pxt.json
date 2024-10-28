@@ -1,6 +1,6 @@
 {
     "name": "pxt-fast-ternary-string-set",
-    "version": "2.1.2",
+    "version": "2.1.3",
     "dependencies": {
         "device": "*",
         "pxt-typed-arrays": "github:robo-technical-group/pxt-typed-arrays#v1.3.2"
