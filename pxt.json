@@ -3,7 +3,7 @@
     "version": "2.1.2",
     "dependencies": {
         "device": "*",
-        "pxt-typed-arrays": "github:robo-technical-group/pxt-typed-arrays#v1.3.1"
+        "pxt-typed-arrays": "github:robo-technical-group/pxt-typed-arrays#v1.3.2"
     },
     "files": [
         "main.ts",
