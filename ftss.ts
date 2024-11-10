@@ -418,6 +418,26 @@ class TernaryStringSet {
         return toReturn
     }
 
+    public get(index: number): string {
+        let toReturn: string = ""
+        if (index >= this._size) {
+            return toReturn
+        }
+        if (this._hasEmpty && index == 0) {
+            return toReturn
+        }
+        let count: number = this._hasEmpty ? 1 : 0
+        this.searchCodePoints(0, [], (prefix, node) => {
+            count++
+            if (count == index) {
+                toReturn = TernaryStringSet.fromCodePoints(prefix)
+                return true
+            }
+            return false
+        })
+        return toReturn
+    }
+
     /**
      * Returns all strings in this set that can be composed from combinations of the code points
      * in the specified string. Unlike an anagram, all of the code points need not to appear for a match
