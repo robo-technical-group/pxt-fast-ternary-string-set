@@ -385,6 +385,11 @@ class TernaryStringSet {
         })
     }
 
+    public static fromB64StringSet(stringSet: string[]): TernaryStringSet {
+        let ui8: Uint8Array = Base64.decodeBufferFromStringSet(stringSet)
+        return TernaryStringSet.fromBuffer(ui8.buffer)
+    }
+
     /**
      * Creates a new string set from data in a buffer previously created with `toBuffer`.
      * Buffers created by an older version of this library can be deserialized by newer versions
