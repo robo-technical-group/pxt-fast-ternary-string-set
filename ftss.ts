@@ -419,13 +419,13 @@ class TernaryStringSet {
     }
 
     public get(index: number): string {
-        let toReturn: string = ""
-        if (index >= this._size) {
-            return toReturn
+        if (index >= this._size || index < 0) {
+            return null
         }
         if (this._hasEmpty && index == 0) {
-            return toReturn
+            return ""
         }
+        let toReturn: string = ""
         let count: number = this._hasEmpty ? 1 : 0
         this.searchCodePoints(0, [], (prefix, node) => {
             count++
