@@ -40,6 +40,8 @@ interface TernaryTreeStats {
     surrogates: number;
 }
 
+//% fixedInstances
+//% blockNamespace=WordLists
 class TernaryStringSet {
     /**
      * Constants
