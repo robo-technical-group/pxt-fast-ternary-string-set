@@ -1,6 +1,7 @@
 namespace WordLists {
     //% fixedInstance
-    export const EmptySet: TernaryStringSet = new TernaryStringSet()
+    //% block="z Empty Set"
+    export const zEmptySet: TernaryStringSet = new TernaryStringSet()
     
     //% block
     export function getRandomWordFromSet(s: TernaryStringSet): string {
