@@ -8,7 +8,8 @@
     "files": [
         "main.ts",
         "ftss.ts",
-        "README.md"
+        "README.md",
+        "wordlist.ts"
     ],
     "testFiles": [
         "test.ts"
