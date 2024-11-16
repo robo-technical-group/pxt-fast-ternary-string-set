@@ -1,6 +1,6 @@
 namespace WordLists {
     //% fixedInstance
-    //% block="z Empty Set"
+    //% block="Empty Set" weight=0
     export const zEmptySet: TernaryStringSet = new TernaryStringSet()
     
     //% block
