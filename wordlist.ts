@@ -8,7 +8,7 @@ namespace WordLists {
         return s.get(randint(0, s.size - 1))
     }
 
-    //% block
+    //% block="is word $word in set $s"
     export function isWordInSet(s: TernaryStringSet, word: string): boolean {
         return s.has(word)
     }
