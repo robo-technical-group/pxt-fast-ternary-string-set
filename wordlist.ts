@@ -12,4 +12,9 @@ namespace WordLists {
     export function isWordInSet(s: TernaryStringSet, word: string): boolean {
         return s.has(word)
     }
+
+    //% block="number of words in set $s"
+    export function wordCount(s: TernaryStringSet): number {
+        return s.size
+    }
 }
