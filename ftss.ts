@@ -95,6 +95,10 @@ class TernaryStringSet {
         maxCodePoint: 0,
         surrogates: 0,
     }
+    /** Forces all words to lowercase when adding and searching. */
+    protected _forceLower: boolean
+    /** Forces all words to uppercase when adding and searching. */
+    protected _forceUpper: boolean
 
     /**
      * Creates a new set. The set will be empty unless the optional iterable `source` object
@@ -128,6 +132,22 @@ class TernaryStringSet {
      */
     public get compacted(): boolean {
         return this._compact
+    }
+
+    public get forceLower(): boolean {
+        return this._forceLower
+    }
+
+    public set forceLower(value: boolean) {
+        this._forceLower = value
+    }
+
+    public get forceUpper(): boolean {
+        return this._forceUpper
+    }
+
+    public set forceUpper(value: boolean) {
+        this._forceUpper = value
     }
 
     public get size(): number {
@@ -164,6 +184,12 @@ class TernaryStringSet {
                 this._size++
             }
         } else {
+            if (this._forceLower) {
+                s = s.toLowerCase()
+            }
+            if (this._forceUpper) {
+                s = s.toUpperCase()
+            }
             if (this._compact && !this.has(s)) {
                 this.decompact()
             }
@@ -345,6 +371,12 @@ class TernaryStringSet {
             }
             return had
         }
+        if (this._forceLower) {
+            s = s.toLowerCase()
+        }
+        if (this._forceUpper) {
+            s = s.toUpperCase()
+        }
         if (this._compact && this.has(s)) {
             this.decompact()
         }
@@ -464,7 +496,12 @@ class TernaryStringSet {
         if (charPattern == null) {
             throw 'Pattern cannot be null.'
         }
-        
+        if (this._forceLower) {
+            charPattern = charPattern.toLowerCase()
+        }
+        if (this._forceUpper) {
+            charPattern = charPattern.toUpperCase()
+        }
         // availChars[codePoint] = How many times codePoint appears in pattern.
         const availChars: number[] = []
         for (let i: number = 0; i < charPattern.length;) {
@@ -497,6 +534,12 @@ class TernaryStringSet {
         }
         if (prefix.length === 0) {
             return this.toArray()
+        }
+        if (this._forceLower) {
+            prefix = prefix.toLowerCase()
+        }
+        if (this._forceUpper) {
+            prefix = prefix.toUpperCase()
         }
 
         const results: string[] = []
@@ -537,6 +580,12 @@ class TernaryStringSet {
         }
         if (suffix.length === 0) {
             return this.toArray()
+        }
+        if (this._forceLower) {
+            suffix = suffix.toLowerCase()
+        }
+        if (this._forceUpper) {
+            suffix = suffix.toUpperCase()
         }
         const results: string[] = []
         const pat: number[] = TernaryStringSet.toCodePoints(suffix)
@@ -582,6 +631,12 @@ class TernaryStringSet {
         if (pattern.length === 0) {
             return this._hasEmpty ? [""] : []
         }
+        if (this._forceLower) {
+            pattern = pattern.toLowerCase()
+        }
+        if (this._forceUpper) {
+            pattern = pattern.toUpperCase()
+        }
 
         const dc = dontCareChar.charCodeAt(0)
         const matches: string[] = []
@@ -610,6 +665,12 @@ class TernaryStringSet {
     public getWithinEditDistanceOf(pattern: string, distance: number): string[] {
         if (pattern == null) {
             throw "Null pattern."
+        }
+        if (this._forceLower) {
+            pattern = pattern.toLowerCase()
+        }
+        if (this._forceUpper) {
+            pattern = pattern.toUpperCase()
         }
 
         distance = TernaryStringSet.checkDistance(distance)
@@ -691,6 +752,12 @@ class TernaryStringSet {
         if (pattern == null) {
             throw "Null pattern."
         }
+        if (this._forceLower) {
+            pattern = pattern.toLowerCase()
+        }
+        if (this._forceUpper) {
+            pattern = pattern.toUpperCase()
+        }
         distance = TernaryStringSet.checkDistance(distance)
 
         // Only the string itself is within distance 0 or matches empty pattern.
@@ -727,6 +794,12 @@ class TernaryStringSet {
         }
         if (s.length === 0) {
             return this._hasEmpty
+        }
+        if (this._forceLower) {
+            s = s.toLowerCase()
+        }
+        if (this._forceUpper) {
+            s = s.toUpperCase()
         }
         return this._has(0, s, 0, s.charCodeAt(0))
     }

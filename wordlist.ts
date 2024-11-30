@@ -17,4 +17,14 @@ namespace WordLists {
     export function wordCount(s: TernaryStringSet): number {
         return s.size
     }
+
+    //% block="word set $s requires lower case?"
+    export function forcesLowerCase(s: TernaryStringSet): boolean {
+        return s.forceLower
+    }
+
+    //% block "word set $s requires upper case?"
+    export function forcesUpperCase(s: TernaryStringSet): boolean {
+        return s.forceUpper
+    }
 }
